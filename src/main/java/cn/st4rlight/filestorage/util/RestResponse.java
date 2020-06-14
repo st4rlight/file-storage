@@ -20,7 +20,15 @@ public class RestResponse<T> {
         return new RestResponse<>(0, "ok", data);
     }
 
-    public static RestResponse error(Exception ex){
-        return new RestResponse(-1, ex.getMessage(), null);
+    public static <T> RestResponse<T> error(Exception ex){
+        return new RestResponse<>(-1, ex.getMessage(), null);
+    }
+
+    public static <T> RestResponse<T> ok(){
+        return new RestResponse<>(0, "ok", null);
+    }
+
+    public static <T> RestResponse<T> errorMsg(int code, String msg){
+        return new RestResponse<>(code, msg, null);
     }
 }

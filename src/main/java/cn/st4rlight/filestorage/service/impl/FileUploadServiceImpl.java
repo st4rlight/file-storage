@@ -3,20 +3,23 @@ package cn.st4rlight.filestorage.service.impl;
 import cn.st4rlight.filestorage.domain.FileUpload;
 import cn.st4rlight.filestorage.domain.MyFile;
 import cn.st4rlight.filestorage.domain.Status;
+import cn.st4rlight.filestorage.domain.TimeUnit;
 import cn.st4rlight.filestorage.dto.UploadResp;
+import cn.st4rlight.filestorage.error.ErrorCodes;
+import cn.st4rlight.filestorage.query.ChangeInfoReq;
 import cn.st4rlight.filestorage.repository.FileRepository;
 import cn.st4rlight.filestorage.repository.FileUploadRepository;
 import cn.st4rlight.filestorage.service.FileUploadService;
 import cn.st4rlight.filestorage.util.MD5;
+import cn.st4rlight.filestorage.util.RestResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
-import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
-import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -38,8 +41,7 @@ public class FileUploadServiceImpl implements FileUploadService {
     @Resource
     private FileRepository fileRepository;
 
-    private Random random = new Random();
-
+    private static final Random random = new Random();
     private static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(DATE_TIME_PATTERN);
     private static final String DATE_PATTERN = "yyyy-MM-dd";
@@ -49,14 +51,20 @@ public class FileUploadServiceImpl implements FileUploadService {
     private static final String ADDRESS = "http://121.36.6.81:8972/";
     private static final String BASE_FILE_PATH = "E:\\files\\";
 
+    private static final int MIN_CODE = 10_000_000;
+    private static final int MAX_CODE = 99_999_999;
+
+
+
     @Override
     public UploadResp uploadFile(MultipartFile file) throws Exception {
         long fileId = getFileId(file);
 
+
         // 先产生一个提取码
-        int code = Math.abs(random.nextInt());
+        long code = getRandomCode();
         while(fileUploadRepository.existsByExtractCodeAndStatusIsNot(code, Status.DELETED))
-            code = Math.abs(random.nextInt());
+            code = getRandomCode();
 
 
         // 构建新的上传信息
@@ -65,15 +73,17 @@ public class FileUploadServiceImpl implements FileUploadService {
                 .uploadTime(LocalDateTime.now())
                 .expireTime(LocalDateTime.now().plusDays(3))
                 .extractCode(code)
+                .fileName(file.getOriginalFilename())
                 .status(Status.NORMAL)
                 .build();
 
         long uploadId = fileUploadRepository.saveAndFlush(fileUpload).getUploadId();
         UploadResp uploadResp = UploadResp.builder()
+                .uploadId(uploadId)
                 .extractCode(code)
-                .qrCode("http://qr.liantu.com/api.php?text=" +  ADDRESS + code)
+                .qrCode(getQrCode(String.valueOf(code)))
                 .time(DEFALUT_EXPIRE_DAYS)
-                .timeUnit(UploadResp.TimeUnit.DAYS)
+                .timeUnit(TimeUnit.DAYS)
                 .build();
 
         log.info("文件上传成功, upload_id: {}", uploadId);
@@ -81,19 +91,31 @@ public class FileUploadServiceImpl implements FileUploadService {
     }
 
     @Override
-    public String getFile(HttpServletResponse response, int code) throws RuntimeException {
+    public RestResponse<? extends Object> getFile(HttpServletResponse response, int code, String password) throws RuntimeException {
         Optional<FileUpload> optional = fileUploadRepository.findByExtractCodeAndStatusNot(code, Status.DELETED);
-        if(optional.isEmpty()){
-            log.info("提取码无效, code: {}", code);
-            return "提取码无效";
-        }
 
+        // 校验提取码
+        if(optional.isEmpty())
+            return ErrorCodes.invalidCode(code);
+
+        // 校验过期时间
         FileUpload fileUpload = optional.get();
-        if(fileUpload.getExpireTime().isBefore(LocalDateTime.now())){
-            log.info("下载请求过期, code: {}", code);
-            return "提取码已过期";
+        if(fileUpload.getExpireTime().isBefore(LocalDateTime.now()))
+            ErrorCodes.expireCode(code);
+
+        // 校验密码
+        String realPassword = fileUpload.getPassword();
+        if(Strings.isNotBlank(realPassword)){
+            // 密码为空
+            if(Strings.isBlank(password))
+                return ErrorCodes.needAuth(code);
+
+            // 密码错误
+            if(!realPassword.equals(MD5.encryptPassword(password)))
+                return ErrorCodes.wrongPassword(password);
         }
 
+        // survive
         String ids = new String(fileUpload.getFileIds());
         String fileId = ids.split(",")[0];
 
@@ -124,6 +146,64 @@ public class FileUploadServiceImpl implements FileUploadService {
 
         return null;
     }
+
+    @Override
+    public RestResponse<? extends Object> changeInfo(ChangeInfoReq req) {
+        Optional<FileUpload> optional = fileUploadRepository.findById(req.getUploadId());
+
+        // 检查上传的信息
+        if(optional.isEmpty())
+            return ErrorCodes.noUploadInfo(req.getUploadId());
+
+        // 检查提取码
+        FileUpload fileUpload = optional.orElse(null);
+        if(fileUpload.getExtractCode() != req.getOldCode())
+            return ErrorCodes.wrongCode(fileUpload.getExtractCode(), req.getOldCode());
+
+        // 检查提取码是否过期
+        if(fileUpload.getExpireTime().isBefore(LocalDateTime.now()))
+            return ErrorCodes.expireCode(req.getOldCode());
+
+        // 检查新旧提取码是否一致
+        if(req.getOldCode() == req.getNewCode())
+            return ErrorCodes.sameCode(req.getOldCode());
+
+        // 检查提取码是否已经存在
+        boolean flag = fileUploadRepository.existsByExtractCodeAndStatusIsNot(req.getNewCode(), Status.DELETED);
+        if(flag)
+            return ErrorCodes.duplicateCode(req.getNewCode());
+
+
+        // 检查最大保存时间是否超过30天
+        LocalDateTime time = fileUpload.getUploadTime();
+        if(req.getTimeUnit() == TimeUnit.DAYS)
+            time = time.plusDays(req.getTime());
+        else
+            time = time.plusHours(req.getTime());
+        if(time.isAfter(fileUpload.getUploadTime().plusDays(30)))
+            return ErrorCodes.timeExceed30Days(req.getTime(), req.getTimeUnit());
+
+
+        // survive
+        fileUpload.setExpireTime(time);
+        fileUpload.setExtractCode(req.getNewCode());
+        if(Strings.isNotBlank(req.getPassword()))
+            fileUpload.setPassword(MD5.encryptPassword(req.getPassword().trim()));
+        fileUploadRepository.saveAndFlush(fileUpload);
+
+
+        UploadResp resp = UploadResp.builder()
+                .extractCode(fileUpload.getExtractCode())
+                .qrCode(getQrCode(String.valueOf(fileUpload.getExtractCode())))
+                .time(req.getTime())
+                .timeUnit(req.getTimeUnit())
+                .uploadId(fileUpload.getUploadId())
+                .build();
+
+        return RestResponse.of(resp);
+    }
+
+
 
     // 获取文件id
     public long getFileId(MultipartFile file) throws RuntimeException{
@@ -181,7 +261,6 @@ public class FileUploadServiceImpl implements FileUploadService {
         }
     }
 
-
     public void inToOut(InputStream is, OutputStream os) throws IOException{
         BufferedInputStream bif = new BufferedInputStream(is);
         BufferedOutputStream bof = new BufferedOutputStream(os);
@@ -195,5 +274,13 @@ public class FileUploadServiceImpl implements FileUploadService {
         bif.close();
         is.close();
         os.close();
+    }
+
+    public long getRandomCode(){
+        return Math.abs(random.nextInt()) % (MAX_CODE - MIN_CODE + 1) + MIN_CODE;
+    }
+
+    public String getQrCode(String str){
+        return "http://qr.liantu.com/api.php?text=" + ADDRESS + str;
     }
 }

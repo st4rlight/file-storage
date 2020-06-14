@@ -1,6 +1,8 @@
 package cn.st4rlight.filestorage.controller;
 
 import cn.st4rlight.filestorage.dto.UploadResp;
+import cn.st4rlight.filestorage.error.ErrorCodes;
+import cn.st4rlight.filestorage.query.ChangeInfoReq;
 import cn.st4rlight.filestorage.service.FileUploadService;
 import cn.st4rlight.filestorage.util.RestResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -32,20 +34,32 @@ public class FileUploadController {
         }
     }
 
-    @GetMapping("/{code}")
-    public String getFile(HttpServletResponse response, @PathVariable("code") int code){
-        if(code < 0){
-            log.warn("错误的下载访问请求, extra_code: {}", code);
-            return "请求的提取码有误";
-        }
+    @GetMapping(value = {"/{code}", "/{code}/{password}"})
+    public RestResponse<Void> getFile(
+        HttpServletResponse response, @PathVariable("code") int code,
+        @PathVariable(name = "password", required = false) String password
+    ){
+        log.info("提取文件请求，code: {}, password", code, password);
+        if(code < 0)
+            return ErrorCodes.invalidCode(code);
 
-        String result = null;
         try {
-            result = fileUploadService.getFile(response, code);
+            return (RestResponse<Void>) fileUploadService.getFile(response, code, password);
+
         } catch (IOException ex) {
             ex.printStackTrace();
+            return RestResponse.error(ex);
         }
+    }
 
-        return result;
+    @PostMapping("/changeInfo")
+    public RestResponse<UploadResp> changeInfo(@RequestBody ChangeInfoReq req){
+        try{
+            log.info("修改信息请求，rep: {}", req);
+            return (RestResponse<UploadResp>) fileUploadService.changeInfo(req);
+        }catch (Exception ex){
+            ex.printStackTrace();
+            return RestResponse.error(ex);
+        }
     }
 }

@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 @Slf4j
 public class MD5 {
@@ -33,6 +34,22 @@ public class MD5 {
             throw new RuntimeException(ex);
         }finally {
             inputStream.close();
+        }
+    }
+
+    public static String encryptPassword(String password){
+        byte[] secrectBytes = null;
+        try {
+            secrectBytes = MessageDigest.getInstance("MD5").digest(password.getBytes());
+            String str = new BigInteger(1, secrectBytes).toString(16);
+            StringBuilder sb = new StringBuilder(str);
+            for(int i = 0; i < 32 - str.length(); i++)
+                sb.insert(0, "0");
+
+            return sb.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            log.error("密码加密出错", ex);
+            throw new RuntimeException(ex);
         }
     }
 }

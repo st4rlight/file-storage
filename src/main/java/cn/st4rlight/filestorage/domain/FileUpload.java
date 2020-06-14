@@ -22,15 +22,16 @@ public class FileUpload {
     private long uploadId;
 
     @Column(nullable = false)
-    private int extractCode;
+    private long extractCode;
 
     private String password;
-
 
     @Lob
     @Basic(fetch = FetchType.LAZY)
     @Column(nullable = false)
     private byte[] fileIds;
+
+    private String fileName;
 
     @JsonFormat(pattern = "yyyy-MM-dd: HH:mm:ss")
     private LocalDateTime uploadTime;

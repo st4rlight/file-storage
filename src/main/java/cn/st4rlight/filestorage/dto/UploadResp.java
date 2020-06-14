@@ -1,5 +1,6 @@
 package cn.st4rlight.filestorage.dto;
 
+import cn.st4rlight.filestorage.domain.TimeUnit;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,16 +12,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class UploadResp {
 
-    private int extractCode;
+    private long uploadId;
+
+    private long extractCode;
 
     private String qrCode;
 
     private int time;
 
     private TimeUnit timeUnit;
-
-    public static enum TimeUnit {
-        HOURS,
-        DAYS
-    }
 }

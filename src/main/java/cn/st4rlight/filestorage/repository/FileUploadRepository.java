@@ -10,7 +10,9 @@ import java.util.Optional;
 @Repository
 public interface FileUploadRepository extends JpaRepository<FileUpload, Long> {
 
-    boolean existsByExtractCodeAndStatusIsNot(int code, Status status);
+    boolean existsByExtractCodeAndStatusIsNot(long code, Status status);
 
-    Optional<FileUpload> findByExtractCodeAndStatusNot(int code, Status status);
+    Optional<FileUpload> findByExtractCodeAndStatusNot(long code, Status status);
+
+
 }
