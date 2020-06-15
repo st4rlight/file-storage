@@ -4,11 +4,13 @@ server:
     context-path: /api
 
 spring:
+  profiles:
+    include: storage
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://121.36.6.81:3306/blog?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf8
-    username:
-    password:
+    username: root
+    password: 114092
 
   servlet:
     multipart:
@@ -25,5 +27,4 @@ spring:
               model:
                 naming:
                   PhysicalNamingStrategyStandardImpl  # 设置驼峰转换
-    show-sql: true
-
+    show-sql: false

@@ -14,6 +14,7 @@ import cn.st4rlight.filestorage.util.MD5;
 import cn.st4rlight.filestorage.util.RestResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -49,11 +50,12 @@ public class FileUploadServiceImpl implements FileUploadService {
 
     private static final int DEFALUT_EXPIRE_DAYS = 3;
     private static final String ADDRESS = "http://121.36.6.81:8972/";
-    private static final String BASE_FILE_PATH = "E:\\files\\";
 
     private static final int MIN_CODE = 10_000_000;
     private static final int MAX_CODE = 99_999_999;
 
+    @Value("${file-storage.path}")
+    private String BASE_FILE_PATH;
 
 
     @Override
@@ -126,15 +128,15 @@ public class FileUploadServiceImpl implements FileUploadService {
             response.addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
             response.addHeader(
             "Content-Disposition",
-            "attachment;filename=" + URLEncoder.encode(myFile.getFileName(), StandardCharsets.UTF_8) +
-                ";filename*=utf-8" + URLEncoder.encode(myFile.getFileName(), StandardCharsets.UTF_8)
+            "attachment;filename=" + URLEncoder.encode(myFile.getFileName(), StandardCharsets.UTF_8) // 解决文件名显示中文的问题
             );
             response.addHeader("Pragma", "no-cache");
             response.addHeader("Expires", myFile.getExpireTime().format(DATE_TIME_FORMATTER));
             response.addHeader("Last-Modified", myFile.getCreateTime().format(DATE_TIME_FORMATTER));
             response.addHeader("ETag", String.valueOf(System.currentTimeMillis()));
-            response.setContentType("application/force-download");// 设置强制下载不打开
-            response.addHeader("content-type", myFile.getContentType() + ";charset=UTF-8");
+            response.setContentType("application/force-download");  // 设置强制下载不打开
+            response.addHeader("content-type", myFile.getContentType());
+            response.addHeader("content-length", String.valueOf(myFile.getFileSize())); // 显示文件大小
 
             File file = new File(myFile.getFilePath());
             inToOut(new FileInputStream(file), response.getOutputStream());
