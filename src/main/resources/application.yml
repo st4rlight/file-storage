@@ -28,3 +28,4 @@ spring:
                 naming:
                   PhysicalNamingStrategyStandardImpl  # 设置驼峰转换
     show-sql: false
+    open-in-view: false # 避免open-inview警告

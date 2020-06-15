@@ -42,6 +42,9 @@ public class FileUploadServiceImpl implements FileUploadService {
     @Resource
     private FileRepository fileRepository;
 
+    @Resource
+    private ErrorCodes errorCodes;
+
     private static final Random random = new Random();
     private static final String DATE_TIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern(DATE_TIME_PATTERN);
@@ -98,23 +101,23 @@ public class FileUploadServiceImpl implements FileUploadService {
 
         // 校验提取码
         if(optional.isEmpty())
-            return ErrorCodes.invalidCode(code);
+            return errorCodes.invalidCode(code);
 
         // 校验过期时间
         FileUpload fileUpload = optional.get();
         if(fileUpload.getExpireTime().isBefore(LocalDateTime.now()))
-            ErrorCodes.expireCode(code);
+            errorCodes.expireCode(code);
 
         // 校验密码
         String realPassword = fileUpload.getPassword();
         if(Strings.isNotBlank(realPassword)){
             // 密码为空
             if(Strings.isBlank(password))
-                return ErrorCodes.needAuth(code);
+                return errorCodes.needAuth(code);
 
             // 密码错误
             if(!realPassword.equals(MD5.encryptPassword(password)))
-                return ErrorCodes.wrongPassword(password);
+                return errorCodes.wrongPassword(password);
         }
 
         // survive
@@ -155,25 +158,25 @@ public class FileUploadServiceImpl implements FileUploadService {
 
         // 检查上传的信息
         if(optional.isEmpty())
-            return ErrorCodes.noUploadInfo(req.getUploadId());
+            return errorCodes.noUploadInfo(req.getUploadId());
 
         // 检查提取码
         FileUpload fileUpload = optional.orElse(null);
         if(fileUpload.getExtractCode() != req.getOldCode())
-            return ErrorCodes.wrongCode(fileUpload.getExtractCode(), req.getOldCode());
+            return errorCodes.wrongCode(fileUpload.getExtractCode(), req.getOldCode());
 
         // 检查提取码是否过期
         if(fileUpload.getExpireTime().isBefore(LocalDateTime.now()))
-            return ErrorCodes.expireCode(req.getOldCode());
+            return errorCodes.expireCode(req.getOldCode());
 
         // 检查新旧提取码是否一致
         if(req.getOldCode() == req.getNewCode())
-            return ErrorCodes.sameCode(req.getOldCode());
+            return errorCodes.sameCode(req.getOldCode());
 
         // 检查提取码是否已经存在
         boolean flag = fileUploadRepository.existsByExtractCodeAndStatusIsNot(req.getNewCode(), Status.DELETED);
         if(flag)
-            return ErrorCodes.duplicateCode(req.getNewCode());
+            return errorCodes.duplicateCode(req.getNewCode());
 
 
         // 检查最大保存时间是否超过30天
@@ -183,7 +186,7 @@ public class FileUploadServiceImpl implements FileUploadService {
         else
             time = time.plusHours(req.getTime());
         if(time.isAfter(fileUpload.getUploadTime().plusDays(30)))
-            return ErrorCodes.timeExceed30Days(req.getTime(), req.getTimeUnit());
+            return errorCodes.timeExceed30Days(req.getTime(), req.getTimeUnit());
 
 
         // survive

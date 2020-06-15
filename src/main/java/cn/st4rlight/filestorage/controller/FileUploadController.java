@@ -21,6 +21,8 @@ public class FileUploadController {
     @Resource
     private FileUploadService fileUploadService;
 
+    @Resource
+    private ErrorCodes errorCodes;
 
     @PostMapping("/upload")
     public RestResponse<UploadResp> uploadFile(@RequestParam("file")MultipartFile file){
@@ -39,9 +41,9 @@ public class FileUploadController {
         HttpServletResponse response, @PathVariable("code") int code,
         @PathVariable(name = "password", required = false) String password
     ){
-        log.info("提取文件请求，code: {}, password", code, password);
+        log.info("提取文件请求，code: {}, password: ", code, password);
         if(code < 0)
-            return ErrorCodes.invalidCode(code);
+            return errorCodes.invalidCode(code);
 
         try {
             return (RestResponse<Void>) fileUploadService.getFile(response, code, password);
