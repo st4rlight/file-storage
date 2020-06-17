@@ -1,6 +1,6 @@
 package cn.st4rlight.filestorage.aspects;
 
-import cn.st4rlight.filestorage.util.RequestIdUtil;
+import cn.st4rlight.filestorage.util.RequestUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -21,7 +21,7 @@ public class RequestIdAspect {
     public Object doAddRequestIdOutput(ProceedingJoinPoint pjp){
         try {
             System.out.println("+-------------------------------------------------------+");
-            System.out.println("request_id: " + RequestIdUtil.getRequestId().toString());
+            System.out.println("request_id: " + RequestUtil.getRequestId().toString());
 
             Object[] args = pjp.getArgs();
             Object returnVal = pjp.proceed(args);

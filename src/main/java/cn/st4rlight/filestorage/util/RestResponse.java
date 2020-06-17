@@ -13,8 +13,16 @@ public class RestResponse<T> {
 
     private int code;
     private String message;
+    private long timeCost;
+    private String requestId;
 
     private T data;
+
+    public RestResponse(int code, String message, T data) {
+        this.code = code;
+        this.message = message;
+        this.data = data;
+    }
 
     public static <T> RestResponse<T> of(T data){
         return new RestResponse<>(0, "ok", data);

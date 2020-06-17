@@ -1,5 +1,6 @@
 package cn.st4rlight.filestorage.interceptors;
 
+import cn.st4rlight.filestorage.util.RequestUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -12,19 +13,16 @@ import javax.servlet.http.HttpServletResponse;
 @Component
 public class TimeCostInterceptor implements HandlerInterceptor {
 
-    private ThreadLocal<Long> threadLocal = new ThreadLocal<>();
-
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        long start = System.currentTimeMillis();
-        threadLocal.set(start);
+        RequestUtil.setStartTime();
 
         return true;
     }
 
     @Override
     public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) throws Exception {
-        long start = threadLocal.get();
+        long start = RequestUtil.getStartTime();
         long end = System.currentTimeMillis();
 
         log.info("[Interceptor] Method: {}, Url: {}, TimeCost: {}ms", request.getMethod(), request.getRequestURL(), end - start);
@@ -32,6 +30,6 @@ public class TimeCostInterceptor implements HandlerInterceptor {
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
-        threadLocal.remove();
+        RequestUtil.removeStartTime();
     }
 }
