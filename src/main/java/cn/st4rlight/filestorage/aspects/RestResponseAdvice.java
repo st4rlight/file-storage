@@ -13,8 +13,10 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 @ControllerAdvice
 public class RestResponseAdvice implements ResponseBodyAdvice<RestResponse<? extends Object>> {
 
+    // 给response加上统一的时间消耗和请求id
     @Override
     public RestResponse<? extends Object> beforeBodyWrite(RestResponse<?> body, MethodParameter returnType, MediaType selectedContentType, Class<? extends HttpMessageConverter<?>> selectedConverterType, ServerHttpRequest request, ServerHttpResponse response) {
+        assert body != null;
         body.setTimeCost(System.currentTimeMillis() - RequestUtil.getStartTime());
         body.setRequestId(RequestUtil.getRequestId().toString());
 
