@@ -27,9 +27,4 @@ public class TimeCostInterceptor implements HandlerInterceptor {
 
         log.info("[Interceptor] Method: {}, Url: {}, TimeCost: {}ms", request.getMethod(), request.getRequestURL(), end - start);
     }
-
-    @Override
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
-        RequestUtil.removeStartTime();
-    }
 }

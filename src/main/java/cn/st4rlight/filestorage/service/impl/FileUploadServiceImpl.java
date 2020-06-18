@@ -28,9 +28,11 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -63,7 +65,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 
     @Override
     public UploadResp uploadFile(MultipartFile file) throws Exception {
-        long fileId = getFileId(file);
+        long fileId = getFileId(file, LocalDateTime.now());
 
 
         // 先产生一个提取码
@@ -91,7 +93,42 @@ public class FileUploadServiceImpl implements FileUploadService {
                 .timeUnit(TimeUnit.DAYS)
                 .build();
 
-        log.info("文件上传成功, upload_id: {}", uploadId);
+        log.info("单文件上传成功, upload_id: {}", uploadId);
+        return uploadResp;
+    }
+
+    @Override
+    public UploadResp uploadMultiFile(List<MultipartFile> files) throws Exception {
+        // 统一的起始时间，防止因写入时间过长，导致每个文件的过期时间不一样
+        final LocalDateTime commonNow = LocalDateTime.now();
+        List<String> fileIds = files.stream()
+                .map(item -> String.valueOf(getFileId(item, commonNow)))
+                .collect(Collectors.toList());
+
+        long code = getRandomCode();
+        while(fileUploadRepository.existsByExtractCodeAndStatusIsNot(code, Status.DELETED))
+            code = getRandomCode();
+
+        // 构建新的上传信息
+        FileUpload fileUpload = FileUpload.builder()
+                .fileIds(String.join(",", fileIds.toArray(new String[0])).getBytes())
+                .uploadTime(LocalDateTime.now())
+                .expireTime(LocalDateTime.now().plusDays(3))
+                .extractCode(code)
+                .fileName(null)
+                .status(Status.NORMAL)
+                .build();
+
+        long uploadId = fileUploadRepository.saveAndFlush(fileUpload).getUploadId();
+        UploadResp uploadResp = UploadResp.builder()
+                .uploadId(uploadId)
+                .extractCode(code)
+                .qrCode(getQrCode(String.valueOf(code)))
+                .time(DEFALUT_EXPIRE_DAYS)
+                .timeUnit(TimeUnit.DAYS)
+                .build();
+
+        log.info("多文件上传成功, upload_id: {}", uploadId);
         return uploadResp;
     }
 
@@ -211,7 +248,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 
 
     // 获取文件id
-    public long getFileId(MultipartFile file) throws RuntimeException{
+    public long getFileId(MultipartFile file, LocalDateTime commonNow) throws RuntimeException{
         long fileId = 0;
 
         try {
@@ -225,8 +262,8 @@ public class FileUploadServiceImpl implements FileUploadService {
             if(optional.isPresent()){
                 // 若存在文件，则判断下是否要修改下默认的过期时间
                 MyFile myFile = optional.get();
-                if (myFile.getExpireTime().isBefore(LocalDateTime.now().plusDays(3)))
-                    myFile.setExpireTime(LocalDateTime.now().plusDays(3));
+                if (myFile.getExpireTime().isBefore(commonNow.plusDays(3)))
+                    myFile.setExpireTime(commonNow.plusDays(3));
 
                 fileId = myFile.getFileId();
                 log.info("当前上传的文件已存在, id: {}", fileId);
@@ -250,8 +287,8 @@ public class FileUploadServiceImpl implements FileUploadService {
                         .fileSize(file.getSize())
                         .contentType(file.getContentType())
                         .md5(md5.getBytes())
-                        .createTime(LocalDateTime.now())
-                        .expireTime(LocalDateTime.now().plusDays(3))
+                        .createTime(commonNow)
+                        .expireTime(commonNow.plusDays(3))
                         .status(Status.NORMAL)
                         .build();
 

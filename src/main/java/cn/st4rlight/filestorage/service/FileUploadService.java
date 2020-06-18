@@ -7,10 +7,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
 
 public interface FileUploadService {
 
     UploadResp uploadFile(MultipartFile file) throws Exception;
+    UploadResp uploadMultiFile(List<MultipartFile> files) throws Exception;
     RestResponse<? extends Object> getFile(HttpServletResponse response, int code, String password) throws IOException;
     RestResponse<? extends Object> changeInfo(ChangeInfoReq req);
 }

@@ -53,4 +53,9 @@ public class ErrorCodes {
         log.warn("密码错误, password: {}", password);
         return RestResponse.errorMsg(4009, "密码错误, password: " + password);
     }
+
+    public RestResponse<Void> emptyFile(){
+        log.warn("上传文件数为0");
+        return RestResponse.errorMsg(4010, "上传文件数为0");
+    }
 }
