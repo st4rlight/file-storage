@@ -25,7 +25,12 @@ public class MD5 {
             byte[] bytes = md5.digest();
             bi = new BigInteger(1, bytes);
 
-            return bi.toString(16);
+            // 使用BigInteger做转换得话会导致丢失前置得0，因此要补上
+            String result = bi.toString(16);
+            while(result.length() < 32)
+                result = "0" + result;
+
+            return result;
         } catch (NoSuchAlgorithmException ex) {
             log.error("获取MD5转换工具出错", ex);
             throw new RuntimeException(ex);

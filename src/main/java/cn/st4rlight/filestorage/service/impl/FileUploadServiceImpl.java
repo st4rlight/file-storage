@@ -120,7 +120,7 @@ public class FileUploadServiceImpl implements FileUploadService {
             code = getRandomCode();
 
         String ids = String.join(",", fileIds.toArray(new String[0]));
-        Optional<ZipFile> zipFile = zipFileRepository.findByZipNameAndStatusNot(ids.getBytes(), Status.DELETED);
+        Optional<ZipFile> zipFile = zipFileRepository.findByZipNameAndStatusNot(ids, Status.DELETED);
 
         // 若还未创建压缩包则创建
         if(zipFile.isEmpty())
@@ -256,7 +256,7 @@ public class FileUploadServiceImpl implements FileUploadService {
         }
         // 如果是多文件，则要更新下压缩包的状态
         if(ids.length > 1){
-            ZipFile zipFile = zipFileRepository.findByZipNameAndStatusNot(fileUpload.getFileIds(), Status.DELETED).orElse(null);
+            ZipFile zipFile = zipFileRepository.findByZipNameAndStatusNot(new String(fileUpload.getFileIds()), Status.DELETED).orElse(null);
             if(time.isAfter(zipFile.getExpireTime()))
                 zipFile.setExpireTime(time);
 
@@ -374,7 +374,7 @@ public class FileUploadServiceImpl implements FileUploadService {
             ZipFile myZipFile = ZipFile.builder()
                     .filePath(filePath.toString())
                     .fileSize((int)zipFile.length())
-                    .zipName(ids.getBytes())
+                    .zipName(ids)
                     .createTime(commonNow)
                     .expireTime(commonNow.plusDays(3))
                     .status(Status.NORMAL)
@@ -419,7 +419,7 @@ public class FileUploadServiceImpl implements FileUploadService {
     // 获取多文件时写出到输出流
     public void writeMultiFileToOutput(HttpServletResponse response, String[] fileIds) throws IOException{
         String zipFileName = String.join(",", fileIds);
-        Optional<ZipFile> byZipName = zipFileRepository.findByZipNameAndStatusNot(zipFileName.getBytes(), Status.DELETED);
+        Optional<ZipFile> byZipName = zipFileRepository.findByZipNameAndStatusNot(zipFileName, Status.DELETED);
 
         ZipFile zipFile = byZipName.orElse(null);
 
