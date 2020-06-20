@@ -1,14 +1,12 @@
 package cn.st4rlight.filestorage.service.impl;
 
-import cn.st4rlight.filestorage.domain.FileUpload;
-import cn.st4rlight.filestorage.domain.MyFile;
-import cn.st4rlight.filestorage.domain.Status;
-import cn.st4rlight.filestorage.domain.TimeUnit;
+import cn.st4rlight.filestorage.domain.*;
 import cn.st4rlight.filestorage.dto.UploadResp;
 import cn.st4rlight.filestorage.error.ErrorCodes;
 import cn.st4rlight.filestorage.query.ChangeInfoReq;
 import cn.st4rlight.filestorage.repository.FileRepository;
 import cn.st4rlight.filestorage.repository.FileUploadRepository;
+import cn.st4rlight.filestorage.repository.ZipFileRepository;
 import cn.st4rlight.filestorage.service.FileUploadService;
 import cn.st4rlight.filestorage.util.MD5;
 import cn.st4rlight.filestorage.util.RestResponse;
@@ -19,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
+import javax.persistence.Basic;
+import javax.servlet.Filter;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.net.URLEncoder;
@@ -33,6 +33,8 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Slf4j
 @Service
@@ -45,6 +47,10 @@ public class FileUploadServiceImpl implements FileUploadService {
     private FileRepository fileRepository;
 
     @Resource
+    private ZipFileRepository zipFileRepository;
+
+
+    @Resource
     private ErrorCodes errorCodes;
 
     private static final Random random = new Random();
@@ -55,6 +61,7 @@ public class FileUploadServiceImpl implements FileUploadService {
 
     private static final int DEFALUT_EXPIRE_DAYS = 3;
     private static final String ADDRESS = "http://121.36.6.81:8972/";
+    private static final String COMMON_ZIP_PREFIX = "st4rlight-";
 
     private static final int MIN_CODE = 10_000_000;
     private static final int MAX_CODE = 99_999_999;
@@ -65,7 +72,9 @@ public class FileUploadServiceImpl implements FileUploadService {
 
     @Override
     public UploadResp uploadFile(MultipartFile file) throws Exception {
-        long fileId = getFileId(file, LocalDateTime.now());
+        // 统一使用的当前时间
+        final LocalDateTime commonNow = LocalDateTime.now();
+        long fileId = getFileId(file, commonNow);
 
 
         // 先产生一个提取码
@@ -77,8 +86,8 @@ public class FileUploadServiceImpl implements FileUploadService {
         // 构建新的上传信息
         FileUpload fileUpload = FileUpload.builder()
                 .fileIds(String.valueOf(fileId).getBytes())
-                .uploadTime(LocalDateTime.now())
-                .expireTime(LocalDateTime.now().plusDays(3))
+                .uploadTime(commonNow)
+                .expireTime(commonNow.plusDays(3))
                 .extractCode(code)
                 .fileName(file.getOriginalFilename())
                 .status(Status.NORMAL)
@@ -102,18 +111,27 @@ public class FileUploadServiceImpl implements FileUploadService {
         // 统一的起始时间，防止因写入时间过长，导致每个文件的过期时间不一样
         final LocalDateTime commonNow = LocalDateTime.now();
         List<String> fileIds = files.stream()
-                .map(item -> String.valueOf(getFileId(item, commonNow)))
+                .map(item -> getFileId(item, commonNow))
+                .sorted()
+                .map(String::valueOf)
                 .collect(Collectors.toList());
 
         long code = getRandomCode();
         while(fileUploadRepository.existsByExtractCodeAndStatusIsNot(code, Status.DELETED))
             code = getRandomCode();
 
+        String ids = String.join(",", fileIds.toArray(new String[0]));
+        Optional<ZipFile> zipFile = zipFileRepository.findByZipNameAndStatusNot(ids, Status.DELETED);
+
+        // 若还未创建压缩包则创建
+        if(zipFile.isEmpty())
+            generateZip(files, ids, commonNow);
+
         // 构建新的上传信息
         FileUpload fileUpload = FileUpload.builder()
-                .fileIds(String.join(",", fileIds.toArray(new String[0])).getBytes())
-                .uploadTime(LocalDateTime.now())
-                .expireTime(LocalDateTime.now().plusDays(3))
+                .fileIds(ids.getBytes())
+                .uploadTime(commonNow)
+                .expireTime(commonNow.plusDays(3))
                 .extractCode(code)
                 .fileName(null)
                 .status(Status.NORMAL)
@@ -256,22 +274,26 @@ public class FileUploadServiceImpl implements FileUploadService {
             // 计算文件md5
             String md5 = MD5.getMD5(inputStream);
             // 判断数据中是否已经有该文件
-            Optional<MyFile> optional = fileRepository.findByMd5(md5.getBytes());
+            Optional<MyFile> optional = fileRepository.findByMd5AndStatusNot(md5.getBytes(), Status.DELETED);
 
-            fileId = -1L;
             if(optional.isPresent()){
                 // 若存在文件，则判断下是否要修改下默认的过期时间
                 MyFile myFile = optional.get();
                 if (myFile.getExpireTime().isBefore(commonNow.plusDays(3)))
                     myFile.setExpireTime(commonNow.plusDays(3));
 
+                // 判断文件状态, 如果是过期的状态，重新置为正常
+                if(myFile.getStatus() == Status.EXPIRED){
+                    myFile.setStatus(Status.NORMAL);
+                    fileRepository.saveAndFlush(myFile);
+                }
+
                 fileId = myFile.getFileId();
                 log.info("当前上传的文件已存在, id: {}", fileId);
 
-
             }else{
                 // 判断当前日期的文件夹是存在
-                Path path = Path.of(BASE_FILE_PATH, LocalDate.now().format(DATE_FORMATTER));
+                Path path = Path.of(BASE_FILE_PATH, commonNow.toLocalDate().format(DATE_FORMATTER));
                 if (Files.notExists(path))
                     Files.createDirectory(path);
 
@@ -302,6 +324,64 @@ public class FileUploadServiceImpl implements FileUploadService {
             throw new RuntimeException(ex);
         }
     }
+
+    // 写入压缩文件包
+    public long generateZip(List<MultipartFile> files, String ids, LocalDateTime commonNow) throws Exception{
+        FileOutputStream fis = null;
+        ZipOutputStream zipOutputStream = null;
+        InputStream inputStream = null;
+        try {
+            // 判断当前日期文件夹是否存在
+            Path path = Path.of(BASE_FILE_PATH, commonNow.toLocalDate().format(DATE_FORMATTER));
+            if (Files.notExists(path))
+                Files.createDirectory(path);
+
+            Path filePath = Path.of(BASE_FILE_PATH, commonNow.toLocalDate().format(DATE_FORMATTER), COMMON_ZIP_PREFIX + ids + ".zip");
+            File zipFile = filePath.toFile();
+
+            fis = new FileOutputStream(zipFile);
+            zipOutputStream = new ZipOutputStream(fis);
+
+
+            // 写入zip压缩文件
+            byte[] buffer = new byte[1024];
+            for (MultipartFile file : files) {
+                inputStream = file.getInputStream();
+                zipOutputStream.putNextEntry(new ZipEntry(file.getOriginalFilename()));
+
+                int len = 0;
+                while ((len = inputStream.read(buffer)) != -1)
+                    zipOutputStream.write(buffer, 0, len);
+                zipOutputStream.closeEntry();
+                inputStream.close();
+            }
+
+            // 保存信息到数据库中
+            ZipFile myZipFile = ZipFile.builder()
+                    .filePath(filePath.toString())
+                    .fileSize(files.stream().map(MultipartFile::getSize).reduce(Long::sum).orElse(0L).intValue())
+                    .zipName(ids)
+                    .createTime(commonNow)
+                    .expireTime(commonNow.plusDays(3))
+                    .status(Status.NORMAL)
+                    .build();
+            zipFileRepository.saveAndFlush(myZipFile);
+            return myZipFile.getZipId();
+
+        }catch (IOException ex){
+            log.error("创建zip文件出错", ex);
+            throw new RuntimeException(ex);
+        }finally {
+            try {
+                inputStream.close();
+                zipOutputStream.close();
+                fis.close();
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
+        }
+    }
+
 
     public void inToOut(InputStream is, OutputStream os) throws IOException{
         BufferedInputStream bif = new BufferedInputStream(is);
