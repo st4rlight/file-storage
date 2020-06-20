@@ -68,7 +68,7 @@ public class FileUploadController {
         HttpServletResponse response, @PathVariable("code") int code,
         @PathVariable(name = "password", required = false) String password
     ){
-        log.info("提取文件请求，code: {}, password: ", code, password);
+        log.info("提取文件请求，code: {}, password: {}", code, password);
         if(code < 0)
             return errorCodes.invalidCode(code);
 

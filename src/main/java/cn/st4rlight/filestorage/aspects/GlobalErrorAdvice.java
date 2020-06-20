@@ -25,8 +25,8 @@ public class GlobalErrorAdvice {
     @ExceptionHandler(Throwable.class)
     @ResponseBody // 注意这里要加上这个注解
     public RestResponse<Void> GlobalExceptionHandler(Throwable ex){
-        log.error("产生未捕获的异常, request_id: {}", ex, RequestUtil.getRequestId());
-
+        log.error("产生未捕获的异常, request_id: {}", RequestUtil.getRequestId());
+        ex.printStackTrace();
         return RestResponse.errorMsg(500, "服务器产生未捕获的异常\r\n" + ex.getMessage());
     }
 }

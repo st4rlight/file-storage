@@ -9,7 +9,9 @@ import cn.st4rlight.filestorage.repository.FileUploadRepository;
 import cn.st4rlight.filestorage.repository.ZipFileRepository;
 import cn.st4rlight.filestorage.service.FileUploadService;
 import cn.st4rlight.filestorage.util.MD5;
+import cn.st4rlight.filestorage.util.RequestUtil;
 import cn.st4rlight.filestorage.util.RestResponse;
+import jdk.jfr.ContentType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,15 +19,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
-import javax.persistence.Basic;
-import javax.servlet.Filter;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -177,32 +176,27 @@ public class FileUploadServiceImpl implements FileUploadService {
 
         // survive
         String ids = new String(fileUpload.getFileIds());
-        String fileId = ids.split(",")[0];
+        String[] fileIds = ids.split(",");
 
-        Optional<MyFile> byId = fileRepository.findById(Long.parseLong(fileId));
-        MyFile myFile = byId.orElse(null);
 
         try {
-            response.addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-            response.addHeader(
-            "Content-Disposition",
-            "attachment;filename=" + URLEncoder.encode(myFile.getFileName(), StandardCharsets.UTF_8) // 解决文件名显示中文的问题
-            );
+//            response.addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
             response.addHeader("Pragma", "no-cache");
-            response.addHeader("Expires", myFile.getExpireTime().format(DATE_TIME_FORMATTER));
-            response.addHeader("Last-Modified", myFile.getCreateTime().format(DATE_TIME_FORMATTER));
+            response.addHeader("Accept-Ranges", "bytes");
+            response.addHeader("Cache-control", "private");
             response.addHeader("ETag", String.valueOf(System.currentTimeMillis()));
-            response.setContentType("application/force-download");  // 设置强制下载不打开
-            response.addHeader("content-type", myFile.getContentType());
-            response.addHeader("content-length", String.valueOf(myFile.getFileSize())); // 显示文件大小
+            response.setContentType("application/octet-stream");
+//            response.setContentType("application/force-download");  // 设置强制下载不打开
 
-            File file = new File(myFile.getFilePath());
-            inToOut(new FileInputStream(file), response.getOutputStream());
+            if(fileIds.length == 1)
+                writeSingleFileToOutput(response, fileIds);
+            else
+                writeMultiFileToOutput(response, fileIds);
+
         } catch (IOException ex) {
             log.error("文件读写或者header编码出错", ex);
             throw new RuntimeException(ex);
         }
-
 
         return null;
     }
@@ -356,10 +350,11 @@ public class FileUploadServiceImpl implements FileUploadService {
                 inputStream.close();
             }
 
+            zipOutputStream.finish();
             // 保存信息到数据库中
             ZipFile myZipFile = ZipFile.builder()
                     .filePath(filePath.toString())
-                    .fileSize(files.stream().map(MultipartFile::getSize).reduce(Long::sum).orElse(0L).intValue())
+                    .fileSize((int)zipFile.length())
                     .zipName(ids)
                     .createTime(commonNow)
                     .expireTime(commonNow.plusDays(3))
@@ -380,6 +375,47 @@ public class FileUploadServiceImpl implements FileUploadService {
                 throw new RuntimeException(ex);
             }
         }
+    }
+
+
+    // 获取单文件时写出到输出流
+    public void writeSingleFileToOutput(HttpServletResponse response, String[] fileIds) throws IOException{
+        // 单文件处理
+        Optional<MyFile> byId = fileRepository.findById(Long.parseLong(fileIds[0]));
+        MyFile myFile = byId.orElse(null);
+
+        response.addHeader(
+                "Content-Disposition",
+                "attachment;filename=" + URLEncoder.encode(myFile.getFileName(), StandardCharsets.UTF_8) // 解决文件名显示中文的问题
+        );
+        response.addHeader("Expires", myFile.getExpireTime().format(DATE_TIME_FORMATTER));
+        response.addHeader("Last-Modified", myFile.getCreateTime().format(DATE_TIME_FORMATTER));
+        response.addHeader("content-type", myFile.getContentType());
+        response.addHeader("content-length", String.valueOf(myFile.getFileSize())); // 显示文件大小
+
+        File file = new File(myFile.getFilePath());
+        inToOut(new FileInputStream(file), response.getOutputStream());
+    }
+
+    // 获取多文件时写出到输出流
+    public void writeMultiFileToOutput(HttpServletResponse response, String[] fileIds) throws IOException{
+        String zipFileName = String.join(",", fileIds);
+        Optional<ZipFile> byZipName = zipFileRepository.findByZipNameAndStatusNot(zipFileName, Status.DELETED);
+
+        ZipFile zipFile = byZipName.orElse(null);
+
+
+        response.addHeader(
+            "Content-Disposition",
+            "attachment;filename=" + URLEncoder.encode(RequestUtil.getRequestId().toString() + ".zip", StandardCharsets.UTF_8) // 解决文件名显示中文的问题
+        );
+        response.addHeader("Expires", zipFile.getExpireTime().format(DATE_TIME_FORMATTER));
+        response.addHeader("Last-Modified", zipFile.getCreateTime().format(DATE_TIME_FORMATTER));
+        response.addHeader("Content-Type", "application/zip");
+        response.addHeader("Content-Length", String.valueOf(zipFile.getFileSize())); // 显示文件大小
+
+        File file = new File(zipFile.getFilePath());
+        inToOut(new FileInputStream(file), response.getOutputStream());
     }
 
 
