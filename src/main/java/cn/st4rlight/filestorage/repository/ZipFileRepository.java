@@ -10,5 +10,5 @@ import java.util.Optional;
 @Repository
 public interface ZipFileRepository extends JpaRepository<ZipFile, Long> {
 
-    Optional<ZipFile> findByZipNameAndStatusNot(String name, Status status);
+    Optional<ZipFile> findByZipNameAndStatusNot(byte[] name, Status status);
 }

@@ -22,7 +22,7 @@ public class ZipFile {
     private long zipId;
 
     @Column(nullable = false)
-    private String zipName;
+    private byte[] zipName;
 
     @Column(nullable = false)
     private String filePath;
