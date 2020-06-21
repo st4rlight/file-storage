@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import javax.persistence.*;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Data
@@ -15,7 +16,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @Table(name = "file_upload", indexes = {@Index(columnList = "extractCode")})
-public class FileUpload {
+public class FileUpload implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

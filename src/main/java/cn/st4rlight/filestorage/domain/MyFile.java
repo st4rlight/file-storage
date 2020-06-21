@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import javax.persistence.*;
+import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Date;
@@ -17,7 +18,7 @@ import java.util.Date;
 @AllArgsConstructor
 @Entity
 @Table(name = "file")
-public class MyFile {
+public class MyFile implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
