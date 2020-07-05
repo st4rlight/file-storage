@@ -23,8 +23,11 @@ public class RestResponseAdvice implements ResponseBodyAdvice<RestResponse<? ext
         return body;
     }
 
+    // 判断请求的结果是否需要进行统一的处理
+    // 如果是api请求则需要
+    // 如果是其他请求如swagger-ui请求就不需要
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
-        return true;
+        return returnType.getParameterType() == RestResponse.class;
     }
 }
