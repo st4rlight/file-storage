@@ -65,12 +65,11 @@ public class FileUploadController {
 
     @GetMapping(value = {"/retrieve/{code}", "/retrieve/{code}/{password}"})
     public RestResponse<Void> getFile(
-        HttpServletResponse response, @PathVariable("code") int code,
+        HttpServletResponse response,
+        @PathVariable("code") String code,
         @PathVariable(name = "password", required = false) String password
     ){
         log.info("提取文件请求，code: {}, password: {}", code, password);
-        if(code < 0)
-            return errorCodes.invalidCode(code);
 
         try {
             return (RestResponse<Void>) fileUploadService.getFile(response, code, password);
@@ -86,6 +85,19 @@ public class FileUploadController {
         try{
             log.info("修改信息请求，rep: {}", req);
             return (RestResponse<UploadResp>) fileUploadService.changeInfo(req);
+        }catch (Exception ex){
+            ex.printStackTrace();
+            return RestResponse.error(ex);
+        }
+    }
+
+
+    @GetMapping(value = {"/check/{code}", "/check/{code}/{password}"})
+    public RestResponse<Void> checkDownload(@PathVariable("code")String code, @PathVariable(value = "password", required = false) String password){
+        try{
+            log.info("检查文件提取, code: {}, password", code, password);
+            return (RestResponse<Void>)fileUploadService.checkDownload(code, password);
+
         }catch (Exception ex){
             ex.printStackTrace();
             return RestResponse.error(ex);

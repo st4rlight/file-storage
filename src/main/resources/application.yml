@@ -11,6 +11,8 @@ spring:
     url: jdbc:mysql://121.36.6.81:3306/blog?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf8
     username: root
     password: 114092
+    hikari:
+      max-lifetime: 120000
 
   servlet:
     multipart:

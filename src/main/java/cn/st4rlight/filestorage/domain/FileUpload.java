@@ -23,12 +23,11 @@ public class FileUpload implements Serializable {
     private long uploadId;
 
     @Column(nullable = false)
-    private long extractCode;
+    private String extractCode;
 
     private String password;
 
     @Lob
-    @Basic(fetch = FetchType.LAZY)
     @Column(nullable = false)
     private byte[] fileIds;
 

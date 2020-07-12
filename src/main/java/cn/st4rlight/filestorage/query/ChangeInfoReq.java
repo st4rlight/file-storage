@@ -7,9 +7,9 @@ import lombok.Data;
 public class ChangeInfoReq {
     private long uploadId;
 
-    private int oldCode;
+    private String oldCode;
 
-    private int newCode;
+    private String newCode;
 
     private String password;
 

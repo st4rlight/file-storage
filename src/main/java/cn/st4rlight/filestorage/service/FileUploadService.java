@@ -13,6 +13,7 @@ public interface FileUploadService {
 
     UploadResp uploadFile(MultipartFile file) throws Exception;
     UploadResp uploadMultiFile(List<MultipartFile> files) throws Exception;
-    RestResponse<? extends Object> getFile(HttpServletResponse response, int code, String password) throws IOException;
+    RestResponse<? extends Object> getFile(HttpServletResponse response, String code, String password) throws IOException;
     RestResponse<? extends Object> changeInfo(ChangeInfoReq req);
+    RestResponse<? extends Object> checkDownload(String code, String password);
 }

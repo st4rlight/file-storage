@@ -14,7 +14,7 @@ public class UploadResp {
 
     private long uploadId;
 
-    private long extractCode;
+    private String extractCode;
 
     private String qrCode;
 

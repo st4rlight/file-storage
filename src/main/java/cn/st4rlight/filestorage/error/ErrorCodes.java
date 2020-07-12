@@ -14,17 +14,17 @@ public class ErrorCodes {
         return RestResponse.errorMsg(4001, "上传信息不存在, upload_id: " + uploadId);
     }
 
-    public RestResponse<Void> wrongCode(long rightCode, long errorCode){
+    public RestResponse<Void> wrongCode(String rightCode, String errorCode){
         log.warn("提取码不正确, req_code: {}", rightCode, errorCode);
         return RestResponse.errorMsg(4002, "提取码不正确, code: " + errorCode);
     }
 
-    public RestResponse<Void> sameCode(long code){
+    public RestResponse<Void> sameCode(String code){
         log.warn("新提取码与旧提取码一致, code: {}", code);
         return RestResponse.errorMsg(4003, "新提取码与旧提取码一致, code: " + code);
     }
 
-    public RestResponse<Void> duplicateCode(long code){
+    public RestResponse<Void> duplicateCode(String code){
         log.warn("提取码已存在, code: {}", code);
         return RestResponse.errorMsg(4004, "提取码已存在, code: " + code);
     }
@@ -34,17 +34,17 @@ public class ErrorCodes {
         return RestResponse.errorMsg(4005, "有效不能时间超过30天, time: " + time + ", time_unit: " + timeUnit);
     }
 
-    public RestResponse<Void> invalidCode(long code){
+    public RestResponse<Void> invalidCode(String code){
         log.warn("提取码无效, req_code: {}", code);
         return RestResponse.errorMsg(4006, "提取码无效, code: " + code);
     }
 
-    public RestResponse<Void> expireCode(long code){
+    public RestResponse<Void> expireCode(String code){
         log.warn("提取码已过期, req_code: {}", code);
         return RestResponse.errorMsg(4007, "提取码已过期, code: " + code);
     }
 
-    public RestResponse<Void> needAuth(long code){
+    public RestResponse<Void> needAuth(String code){
         log.warn("需要密码, req_code: {}", code);
         return RestResponse.errorMsg(4008, "需要密码, code: " + code);
     }
